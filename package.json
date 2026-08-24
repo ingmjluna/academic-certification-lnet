@@ -1,0 +1,21 @@
+{
+  "name": "academic-certification-lnet",
+  "version": "1.0.0",
+  "description": "Despliegue y gestión de credenciales académicas (ERC-721) sobre LACNET / LNet NaaS reutilizando el bytecode/ABI compilado en Remix.",
+  "type": "commonjs",
+  "private": true,
+  "scripts": {
+    "deploy:certificate": "node scripts/deploy-certificate.js",
+    "deploy:identity": "node scripts/deploy-identity.js",
+    "issue": "node scripts/issue-credential.js",
+    "verify": "node scripts/verify-credential.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@lacchain/gas-model-provider": "^1.2.1",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.4"
+  }
+}
