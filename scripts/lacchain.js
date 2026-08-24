@@ -65,6 +65,20 @@ function getSigner() {
     expiration
   );
 
+  const expected = process.env.UNIVERSITY_ADDRESS;
+  if (expected && expected.trim() !== "") {
+    signer
+      .getAddress()
+      .then((addr) => {
+        if (addr.toLowerCase() !== expected.trim().toLowerCase()) {
+          console.warn(
+            `Aviso: UNIVERSITY_ADDRESS (${expected}) no coincide con la clave privada (${addr}).`
+          );
+        }
+      })
+      .catch(() => {});
+  }
+
   return { signer, provider, expiration };
 }
 

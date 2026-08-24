@@ -20,7 +20,11 @@ async function main() {
 
   const deployer = await signer.getAddress();
   const identityId = process.argv[2] || process.env.IDENTITY_ID || "IDENTITY-001";
-  const initialOwner = process.argv[3] || process.env.IDENTITY_OWNER || deployer;
+  const initialOwner =
+    process.argv[3] ||
+    process.env.IDENTITY_OWNER ||
+    process.env.UNIVERSITY_ADDRESS ||
+    deployer;
 
   console.log("Desplegando AcademicIdentity...");
   console.log("  Deployer:    ", deployer);
