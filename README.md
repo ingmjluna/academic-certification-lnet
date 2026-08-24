@@ -35,17 +35,28 @@ academic-certification-lnet/
 │   └── AcademicIdentity.sol
 ├── scripts/
 │   ├── lacchain.js           # helper: provider/signer + carga de artifacts
+│   ├── sync-abi.js           # copia abi+bytecode de artifacts/ a abi/
 │   ├── deploy-certificate.js
 │   ├── deploy-identity.js
 │   ├── issue-credential.js
 │   └── verify-credential.js
 ├── metadata/
 │   └── credential.json       # ejemplo de metadatos de credencial
+├── hardhat.config.js         # compila con evmVersion "paris" (ver más abajo)
 ├── .env.example
 ├── .gitignore
 ├── package.json
 └── README.md
 ```
+
+> ⚠️ **EVM target obligatorio: `paris`.** La red Besu de LACChain (testnet) no
+> soporta el opcode `PUSH0` (introducido en "shanghai") ni opcodes posteriores.
+> Si compilás con un target más nuevo (shanghai/cancun/prague, que es el
+> **default de Solidity ≥ 0.8.20 / Remix**), el bytecode contiene `PUSH0` y el
+> despliegue **revierte silenciosamente** (la meta-tx se relaya con status 1
+> pero no se crea el contrato). Por eso `hardhat.config.js` fija
+> `evmVersion: "paris"`. **No reutilices bytecode compilado en Remix con el
+> target por defecto.**
 
 > `artifacts/` y `cache/` (salidas de compilación de Remix/Hardhat) están en
 > `.gitignore`. Por eso el ABI y el bytecode que necesitan los scripts se
@@ -79,13 +90,20 @@ academic-certification-lnet/
    | `LACNET_RPC_URL` | RPC del NaaS (`https://testnet-naas.lacnet.com/rpc`). |
    | `LACNET_CHAIN_ID` | `648539` para la testnet NaaS. |
    | `LACNET_NODE_ADDRESS` | **Opcional.** Si se deja vacío, la KMS address se obtiene automáticamente de NaaS. Solo completar para forzar una dirección. |
-   | `LACNET_PRIVATE_KEY` | Clave privada de la cuenta que firma/despliega. **Nunca subir.** |
+   | `LACNET_PRIVATE_KEY` | Clave privada de la cuenta que firma/despliega. **Debe estar permisionada en LACNET (con bucket de gas)**, si no la tx se relaya pero no se ejecuta. **Nunca subir.** |
    | `LACNET_TX_EXPIRATION_SECONDS` | Validez de la tx en el gas model (por defecto 300 = 5 min). |
    | `CERTIFICATE_CONTRACT_ADDRESS` / `IDENTITY_CONTRACT_ADDRESS` | Se completan solas al desplegar; las usan issue/verify. |
    | `STUDENT_ADDRESS`, `CREDENTIAL_IPFS_CID`, `CREDENTIAL_TYPE`, `TOKEN_ID` | Valores por defecto para emitir/verificar. |
 
    > **El `.env` real nunca se sube a GitHub** (está en `.gitignore`). Solo se
    > versiona `.env.example`.
+
+3. (Opcional) Recompilá los contratos con el target correcto. Ya hay un `abi/`
+   versionado y listo, pero si modificás los `.sol`:
+
+   ```bash
+   npm run compile   # hardhat compile (evmVersion paris) + sync-abi
+   ```
 
 ## Uso
 
@@ -125,9 +143,24 @@ y la fecha de emisión.
 
 ## Recompilar / actualizar el ABI
 
-Si modificás los contratos, recompilalos (Remix o Hardhat) y regenerá los
-archivos de `abi/` con el nuevo `abi` y `bytecode` (campo `data.bytecode.object`
-en los artifacts de Remix) para que los scripts usen el bytecode actualizado.
+Si modificás los `.sol`, recompilá con `npm run compile`. Esto ejecuta
+`hardhat compile` (con `evmVersion: "paris"`, ver `hardhat.config.js`) y luego
+`scripts/sync-abi.js`, que copia el `abi` + `bytecode` a la carpeta versionada
+`abi/`. **No compiles en Remix con el target por defecto** (genera `PUSH0` y no
+despliega). Se usa OpenZeppelin `5.0.2` a propósito: versiones más nuevas usan
+el opcode `mcopy` (Cancun), incompatible con `paris`.
+
+## Nota sobre el prototipo (control de acceso vía relay)
+
+En el gas model **todas** las transacciones pasan por el RelayHub, así que
+dentro del contrato `msg.sender` es el RelayHub, no la universidad. Como
+`AcademicCertificate`/`AcademicIdentity` usan OpenZeppelin (`msg.sender`), al
+desplegar por el relay el `ISSUER_ROLE`/`owner` quedan asignados al **RelayHub**.
+Por eso `issue-credential.js` envía la tx con `gasLimit` explícito (para saltear
+`estimateGas`, que simula una llamada directa y falla el control de acceso).
+Funciona para una demo, pero **no es seguro para producción**: para eso hay que
+hacer los contratos *relay-aware* (patrón `BaseRelayRecipient` + `_msgSender()`)
+o asignar el rol/owner por parámetro del constructor.
 
 ## Seguridad
 

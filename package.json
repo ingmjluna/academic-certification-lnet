@@ -5,6 +5,7 @@
   "type": "commonjs",
   "private": true,
   "scripts": {
+    "compile": "hardhat compile && node scripts/sync-abi.js",
     "deploy:certificate": "node scripts/deploy-certificate.js",
     "deploy:identity": "node scripts/deploy-identity.js",
     "issue": "node scripts/issue-credential.js",
@@ -15,8 +16,12 @@
   },
   "dependencies": {
     "@lacchain/gas-model-provider": "^1.2.1",
+    "@openzeppelin/contracts": "5.0.2",
     "axios": "^1.7.7",
     "dotenv": "^16.4.5",
     "ethers": "^6.13.4"
+  },
+  "devDependencies": {
+    "hardhat": "^2.29.1"
   }
 }

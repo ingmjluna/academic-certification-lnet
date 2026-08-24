@@ -32,8 +32,13 @@ async function main() {
 
   const nonce = await getNonce(provider);
   const contract = new Contract(contractAddress, abi, signer);
+  // gasLimit explícito + gasPrice 0: en el gas model todas las tx pasan por el
+  // RelayHub, así que estimateGas (que simula una llamada directa) puede fallar
+  // por el control de acceso. Lo salteamos.
   const tx = await contract.issueCredential(student, ipfsCID, credentialType, {
     nonce,
+    gasLimit: 2000000,
+    gasPrice: 0,
   });
   const receipt = await tx.wait();
 
