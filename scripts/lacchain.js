@@ -158,6 +158,31 @@ async function getNonce(provider) {
   return provider.getTransactionCount(origin, "latest");
 }
 
+/**
+ * Resuelve la dirección de un contrato recién desplegado y verifica que
+ * realmente tenga bytecode. En el gas model de LACNET, si la cuenta que firma
+ * no está permisionada (sin bucket de gas), la meta-transacción se relaya con
+ * status 1 pero el contrato NO se crea: acá lo detectamos y avisamos.
+ */
+async function resolveDeployedAddress(provider, contract, receipt, originAddress) {
+  let address = receipt && receipt.contractAddress;
+  if (!address || address === ethers.ZeroAddress) {
+    address = await contract.getAddress();
+  }
+
+  const code = await provider.getCode(address);
+  if (code === "0x") {
+    throw new Error(
+      "La transacción se relayó pero NO se desplegó ningún contrato " +
+        `(sin bytecode en ${address}).\n` +
+        `Causa habitual: la cuenta firmante ${originAddress} no está ` +
+        "permisionada en LACNET o no tiene bucket de gas asignado. " +
+        "Pedí a soporte de LNet que permisione esa dirección para la red destino."
+    );
+  }
+  return address;
+}
+
 /** Carga { abi, bytecode } desde la carpeta versionada abi/. */
 function loadArtifact(contractName) {
   const file = path.join(ROOT, "abi", `${contractName}.json`);
@@ -199,6 +224,7 @@ module.exports = {
   getProvider,
   getSigner,
   getNonce,
+  resolveDeployedAddress,
   loadArtifact,
   saveEnvValue,
 };

@@ -12,7 +12,13 @@
  */
 
 const { ContractFactory } = require("ethers");
-const { getSigner, getNonce, loadArtifact, saveEnvValue } = require("./lacchain");
+const {
+  getSigner,
+  getNonce,
+  loadArtifact,
+  saveEnvValue,
+  resolveDeployedAddress,
+} = require("./lacchain");
 
 async function main() {
   const { signer, provider, kmsAddress, originAddress } = await getSigner();
@@ -38,7 +44,7 @@ async function main() {
   const contract = await factory.deploy(identityId, initialOwner, { nonce });
 
   const receipt = await contract.deploymentTransaction().wait();
-  const address = receipt.contractAddress;
+  const address = await resolveDeployedAddress(provider, contract, receipt, originAddress);
 
   console.log("Contrato desplegado!");
   console.log("  AcademicIdentity:", address);
