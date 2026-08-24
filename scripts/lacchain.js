@@ -1,19 +1,30 @@
 "use strict";
 
 /**
- * Utilidades compartidas para conectarse a LACNET / LNet (NaaS) usando el
- * "gas model" de la red (gas price 0 + firma vía nodo permisionado).
+ * Utilidades para conectarse a LACNET / LNet a través de NaaS
+ * (Node as a Service) usando el "gas model" de la red.
+ *
+ * Flujo de conexión (según el ejemplo oficial de LACNET):
+ *   1. Login en el backend NaaS (usuario/contraseña) -> access_token.
+ *   2. El access_token se inyecta como header `Authorization: Bearer` en
+ *      TODAS las llamadas RPC (parcheando FetchRequest.prototype.send).
+ *   3. Se obtiene la dirección KMS del usuario (GET /api/user/kms-id).
+ *   4. Se firma con LACNET_PRIVATE_KEY + la KMS address + una expiración (ms).
  *
  * Toda la configuración se lee del archivo .env (ver .env.example).
+ * Ref: https://gitlab.com/lacnet/lacnet-naas/ethers-send-tx-example
  */
 
 require("dotenv").config();
 
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
+const { ethers, FetchRequest } = require("ethers");
 const { LacchainProvider, LacchainSigner } = require("@lacchain/gas-model-provider");
 
 const ROOT = path.resolve(__dirname, "..");
+const DEFAULT_API_URL = "https://naas.lacnet.com";
 
 /** Lanza un error legible si falta una variable de entorno obligatoria. */
 function requireEnv(name) {
@@ -26,68 +37,125 @@ function requireEnv(name) {
   return String(value).trim();
 }
 
+/** URL base del backend NaaS (sin barra final). */
+function apiBaseUrl() {
+  return (process.env.LACNET_NAAS_API_URL || DEFAULT_API_URL).replace(/\/+$/, "");
+}
+
+/** Normaliza la clave privada al formato 0x-hex. */
+function normalizePrivateKey(pk) {
+  const clean = pk.trim().replace(/^0x/, "");
+  return `0x${clean}`;
+}
+
+// --- Token de acceso NaaS (con cache simple en memoria) ---
+let _tokenCache = { value: null, expiresAt: 0 };
+
+async function getAccessToken() {
+  if (_tokenCache.value && Date.now() < _tokenCache.expiresAt) {
+    return _tokenCache.value;
+  }
+  const username = requireEnv("LACNET_NAAS_USER");
+  const password = requireEnv("LACNET_NAAS_PASSWORD");
+
+  const res = await axios.post(`${apiBaseUrl()}/api/auth/login`, {
+    username,
+    password,
+  });
+  const token = res.data && res.data.access_token;
+  if (!token) throw new Error("El backend NaaS no devolvió un access_token.");
+
+  // Cache por 4 minutos (los tokens suelen durar más; se refresca por las dudas).
+  _tokenCache = { value: token, expiresAt: Date.now() + 4 * 60 * 1000 };
+  return token;
+}
+
+/** Obtiene la dirección KMS asociada al usuario NaaS. */
+async function getKmsAddress(token) {
+  const res = await axios.get(`${apiBaseUrl()}/api/user/kms-id`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const address = res.data && res.data.address;
+  if (!address) throw new Error("El backend NaaS no devolvió la dirección KMS.");
+  return address;
+}
+
 /**
- * Construye la URL del RPC embebiendo las credenciales NaaS como Basic Auth
- * cuando están presentes (https://usuario:password@host/rpc).
+ * Parchea FetchRequest para adjuntar el token Bearer en cada request RPC.
+ * Se instala una única vez por proceso.
  */
-function buildRpcUrl() {
-  const rawUrl = requireEnv("LACNET_RPC_URL");
-  const user = process.env.LACNET_NAAS_USER;
-  const password = process.env.LACNET_NAAS_PASSWORD;
+let _interceptorInstalled = false;
+function installAuthInterceptor() {
+  if (_interceptorInstalled) return;
+  const originalSend = FetchRequest.prototype.send;
+  FetchRequest.prototype.send = async function () {
+    try {
+      const token = await getAccessToken();
+      this.setHeader("Authorization", `Bearer ${token}`);
+    } catch (err) {
+      console.error("No se pudo obtener el token NaaS:", err.message || err);
+      throw err;
+    }
+    return originalSend.call(this);
+  };
+  _interceptorInstalled = true;
+}
 
-  if (!user || !password) return rawUrl;
+/** Milisegundos de expiración para el gas model (por defecto 5 min). */
+function expirationMs() {
+  const seconds = Number(process.env.LACNET_TX_EXPIRATION_SECONDS || 300);
+  return Date.now() + seconds * 1000;
+}
 
-  const url = new URL(rawUrl);
-  url.username = encodeURIComponent(user);
-  url.password = encodeURIComponent(password);
-  return url.toString();
+/**
+ * Provider de solo lectura (autenticado vía Bearer) para llamadas `view`.
+ * No requiere clave privada.
+ */
+function getProvider() {
+  installAuthInterceptor();
+  return new LacchainProvider(requireEnv("LACNET_RPC_URL"));
 }
 
 /**
  * Crea un LacchainSigner listo para desplegar / invocar contratos.
- * El signer firma localmente con LACNET_PRIVATE_KEY y adjunta el nodeAddress
- * y la expiración que exige el gas model de LACNET.
+ * Devuelve además el provider y la KMS address usada.
  */
-function getSigner() {
-  const privateKey = requireEnv("LACNET_PRIVATE_KEY");
-  const nodeAddress = requireEnv("LACNET_NODE_ADDRESS");
+async function getSigner() {
+  installAuthInterceptor();
 
-  const expirationSeconds = Number(
-    process.env.LACNET_TX_EXPIRATION_SECONDS || 1800
-  );
-  const expiration = Math.floor(Date.now() / 1000) + expirationSeconds;
+  const privateKey = normalizePrivateKey(requireEnv("LACNET_PRIVATE_KEY"));
+  const token = await getAccessToken();
 
-  const provider = new LacchainProvider(buildRpcUrl());
+  // La KMS address es autoritativa; LACNET_NODE_ADDRESS la sobreescribe si está.
+  const override = (process.env.LACNET_NODE_ADDRESS || "").trim();
+  const kmsAddress = override || (await getKmsAddress(token));
+
+  const provider = new LacchainProvider(requireEnv("LACNET_RPC_URL"));
   const signer = new LacchainSigner(
-    privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`,
+    privateKey,
     provider,
-    nodeAddress,
-    expiration
+    kmsAddress,
+    expirationMs()
   );
 
-  const expected = process.env.UNIVERSITY_ADDRESS;
-  if (expected && expected.trim() !== "") {
-    signer
-      .getAddress()
-      .then((addr) => {
-        if (addr.toLowerCase() !== expected.trim().toLowerCase()) {
-          console.warn(
-            `Aviso: UNIVERSITY_ADDRESS (${expected}) no coincide con la clave privada (${addr}).`
-          );
-        }
-      })
-      .catch(() => {});
+  // Aviso de coherencia con UNIVERSITY_ADDRESS.
+  const expected = (process.env.UNIVERSITY_ADDRESS || "").trim();
+  const origin = ethers.computeAddress(privateKey);
+  if (expected && expected.toLowerCase() !== origin.toLowerCase()) {
+    console.warn(
+      `Aviso: UNIVERSITY_ADDRESS (${expected}) no coincide con la clave privada (${origin}).`
+    );
   }
 
-  return { signer, provider, expiration };
+  return { signer, provider, kmsAddress, originAddress: origin };
 }
 
-/**
- * Provider de solo lectura (no requiere clave privada) para hacer llamadas
- * `view` como getCredential / isValid.
- */
-function getProvider() {
-  return new LacchainProvider(buildRpcUrl());
+/** Nonce actual de la cuenta que firma (origen de la transacción). */
+async function getNonce(provider) {
+  const origin = ethers.computeAddress(
+    normalizePrivateKey(requireEnv("LACNET_PRIVATE_KEY"))
+  );
+  return provider.getTransactionCount(origin, "latest");
 }
 
 /** Carga { abi, bytecode } desde la carpeta versionada abi/. */
@@ -100,8 +168,8 @@ function loadArtifact(contractName) {
 }
 
 /**
- * Persiste la dirección de un contrato desplegado en el .env local
- * (reemplaza la línea VARIABLE= si existe, o la agrega al final).
+ * Persiste un valor en el .env local (reemplaza la línea VARIABLE= si existe,
+ * o la agrega al final).
  */
 function saveEnvValue(key, value) {
   const envPath = path.join(ROOT, ".env");
@@ -126,9 +194,11 @@ function saveEnvValue(key, value) {
 module.exports = {
   ROOT,
   requireEnv,
-  buildRpcUrl,
-  getSigner,
+  getAccessToken,
+  getKmsAddress,
   getProvider,
+  getSigner,
+  getNonce,
   loadArtifact,
   saveEnvValue,
 };

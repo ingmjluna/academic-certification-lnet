@@ -8,18 +8,21 @@
  */
 
 const { ContractFactory } = require("ethers");
-const { getSigner, loadArtifact, saveEnvValue } = require("./lacchain");
+const { getSigner, getNonce, loadArtifact, saveEnvValue } = require("./lacchain");
 
 async function main() {
-  const { signer } = getSigner();
+  const { signer, provider, kmsAddress, originAddress } = await getSigner();
   const { abi, bytecode } = loadArtifact("AcademicCertificate");
 
-  const deployer = await signer.getAddress();
+  const nonce = await getNonce(provider);
+
   console.log("Desplegando AcademicCertificate...");
-  console.log("  Deployer:", deployer);
+  console.log("  Origen (firma):", originAddress);
+  console.log("  KMS address:   ", kmsAddress);
+  console.log("  Nonce:         ", nonce);
 
   const factory = new ContractFactory(abi, bytecode, signer);
-  const contract = await factory.deploy();
+  const contract = await factory.deploy({ nonce });
 
   const receipt = await contract.deploymentTransaction().wait();
   const address = receipt.contractAddress;

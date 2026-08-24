@@ -12,9 +12,16 @@ Incluye dos contratos:
 - **`AcademicIdentity`** — contrato `Ownable` que agrupa (vincula) los tokenIds
   de las credenciales de una identidad.
 
-El despliegue usa el **gas model de LACNET** (gas price 0, firma con clave
-privada + `nodeAddress` + expiración) a través de
-[`@lacchain/gas-model-provider`](https://github.com/lacchain/gas-model-provider).
+El despliegue usa el **gas model de LACNET** (gas price 0) a través de
+[`@lacchain/gas-model-provider`](https://github.com/lacchain/gas-model-provider),
+siguiendo el flujo oficial de **NaaS (Node as a Service)**
+([ejemplo LACNET](https://gitlab.com/lacnet/lacnet-naas/ethers-send-tx-example)):
+
+1. Login en el backend NaaS (usuario/contraseña) → `access_token`.
+2. El token se inyecta como header `Authorization: Bearer` en cada llamada RPC.
+3. Se obtiene la **KMS address** del usuario (`GET /api/user/kms-id`).
+4. Se firma con `LACNET_PRIVATE_KEY` + la KMS address + una expiración, y se
+   envía la transacción con un nonce explícito.
 
 ## Estructura
 
@@ -48,8 +55,8 @@ academic-certification-lnet/
 
 - **Node.js >= 18**
 - Una cuenta **permisionada** en LACNET/LNet (dirección + clave privada).
-- Credenciales de acceso al **nodo NaaS** (usuario/contraseña) y la
-  **dirección del nodo** (`nodeAddress`).
+- Credenciales de una **cuenta NaaS** (email/contraseña) con acceso al RPC.
+  La KMS address se obtiene automáticamente del backend NaaS.
 
 ## Configuración
 
@@ -67,12 +74,13 @@ academic-certification-lnet/
 
    | Variable | Descripción |
    |---|---|
-   | `LACNET_NAAS_USER` / `LACNET_NAAS_PASSWORD` | Credenciales del nodo NaaS (Basic Auth sobre el RPC). |
-   | `LACNET_NODE_ADDRESS` | Dirección del nodo escritor permisionado. |
+   | `LACNET_NAAS_USER` / `LACNET_NAAS_PASSWORD` | Email + contraseña de tu cuenta NaaS (login que genera el `access_token`). |
+   | `LACNET_NAAS_API_URL` | Backend NaaS (`https://naas.lacnet.com`). |
    | `LACNET_RPC_URL` | RPC del NaaS (`https://testnet-naas.lacnet.com/rpc`). |
    | `LACNET_CHAIN_ID` | `648539` para la testnet NaaS. |
+   | `LACNET_NODE_ADDRESS` | **Opcional.** Si se deja vacío, la KMS address se obtiene automáticamente de NaaS. Solo completar para forzar una dirección. |
    | `LACNET_PRIVATE_KEY` | Clave privada de la cuenta que firma/despliega. **Nunca subir.** |
-   | `LACNET_TX_EXPIRATION_SECONDS` | Validez de la tx en el gas model (por defecto 1800). |
+   | `LACNET_TX_EXPIRATION_SECONDS` | Validez de la tx en el gas model (por defecto 300 = 5 min). |
    | `CERTIFICATE_CONTRACT_ADDRESS` / `IDENTITY_CONTRACT_ADDRESS` | Se completan solas al desplegar; las usan issue/verify. |
    | `STUDENT_ADDRESS`, `CREDENTIAL_IPFS_CID`, `CREDENTIAL_TYPE`, `TOKEN_ID` | Valores por defecto para emitir/verificar. |
 

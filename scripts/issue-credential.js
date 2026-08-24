@@ -12,10 +12,10 @@
  */
 
 const { Contract } = require("ethers");
-const { getSigner, loadArtifact, requireEnv } = require("./lacchain");
+const { getSigner, getNonce, loadArtifact, requireEnv } = require("./lacchain");
 
 async function main() {
-  const { signer } = getSigner();
+  const { signer, provider } = await getSigner();
   const { abi } = loadArtifact("AcademicCertificate");
 
   const contractAddress = requireEnv("CERTIFICATE_CONTRACT_ADDRESS");
@@ -30,8 +30,11 @@ async function main() {
   console.log("  IPFS CID:", ipfsCID);
   console.log("  Tipo:    ", credentialType);
 
+  const nonce = await getNonce(provider);
   const contract = new Contract(contractAddress, abi, signer);
-  const tx = await contract.issueCredential(student, ipfsCID, credentialType);
+  const tx = await contract.issueCredential(student, ipfsCID, credentialType, {
+    nonce,
+  });
   const receipt = await tx.wait();
 
   // Recuperamos el tokenId desde el evento CredentialIssued.
