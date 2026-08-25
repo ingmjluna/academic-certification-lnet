@@ -179,17 +179,88 @@ Si modificás los `.sol`, recompilá con `npm run compile`. Esto ejecuta
 despliega). Se usa OpenZeppelin `5.0.2` a propósito: versiones más nuevas usan
 el opcode `mcopy` (Cancun), incompatible con `paris`.
 
-## Nota sobre el prototipo (control de acceso vía relay)
+## El modelo de gas de LNET y el RelayHub (fundamento)
 
-En el gas model **todas** las transacciones pasan por el RelayHub, así que
-dentro del contrato `msg.sender` es el RelayHub, no la universidad. Como
-`AcademicCertificate`/`AcademicIdentity` usan OpenZeppelin (`msg.sender`), al
-desplegar por el relay el `ISSUER_ROLE`/`owner` quedan asignados al **RelayHub**.
-Por eso `issue-credential.js` envía la tx con `gasLimit` explícito (para saltear
-`estimateGas`, que simula una llamada directa y falla el control de acceso).
-Funciona para una demo, pero **no es seguro para producción**: para eso hay que
-hacer los contratos *relay-aware* (patrón `BaseRelayRecipient` + `_msgSender()`)
-o asignar el rol/owner por parámetro del constructor.
+### 1. Redes públicas permisionadas sin comisiones
+
+LNET (antes LACChain) opera una red pública permisionada basada en Hyperledger
+Besu en la que **el precio del gas es cero** (`gasPrice = 0`). Eliminar las
+comisiones evita la especulación con una criptomoneda nativa, pero reintroduce
+el problema que las comisiones resolvían: **prevenir el abuso de recursos**
+(spam, denegación de servicio). Para ello, LNET no permite que una cuenta
+cualquiera escriba directamente en la cadena, sino que impone un **modelo de
+gas** en el que toda transacción es intermediada y contabilizada por un conjunto
+de contratos de sistema.
+
+### 2. Meta-transacciones y el RelayHub
+
+El componente central de ese modelo es el **RelayHub** (en esta testnet,
+`0xB9e9C5C528C266f2A1C7Eeec1975595232C8E475`). El flujo es el de una
+**meta-transacción**:
+
+1. La aplicación firma la intención de transacción con su clave privada
+   (`LACNET_PRIVATE_KEY`) e indica el nodo escritor y una expiración.
+2. Un **nodo permisionado** (identificado por su KMS address) reenvía esa
+   transacción al **RelayHub**, que verifica permisos y cupo de gas del emisor.
+3. El RelayHub ejecuta la llamada al contrato destino **en nombre** del emisor.
+
+La consecuencia técnica fundamental es que, **dentro del contrato invocado, la
+variable `msg.sender` no es la cuenta de la universidad, sino la dirección del
+RelayHub**, porque es el RelayHub quien realiza la llamada final. Todas las
+transacciones de todos los usuarios que operan por el mismo relay comparten ese
+`msg.sender`.
+
+Para recuperar el emisor original, LNET provee un **trusted forwarder**
+(`0xa4B5eE2906090ce2cDbf5dfff944db26f397037D`), que expone `getRelayHub()` y
+`getMsgSender()`. Un contrato *relay-aware* (patrón `BaseRelayRecipient`)
+sustituye `msg.sender` por `_msgSender()`, que consulta al forwarder y devuelve
+la cuenta real. Los contratos de este repositorio, al basarse en OpenZeppelin
+(que usa `msg.sender` vía `Context`), **no** implementan ese patrón (ver §4).
+
+### 3. La particularidad sobre `AcademicIdentity`
+
+`AcademicIdentity` hereda de `Ownable` y protege `linkCredential(tokenId)` con
+el modificador `onlyOwner`, que internamente compara `owner()` contra
+`msg.sender`. Aquí aparece la particularidad del modelo de gas:
+
+- Si se despliega la identidad asignando como `owner` a la cuenta de la
+  universidad (`0x8147…`), la comprobación `onlyOwner` **nunca se satisface a
+  través del NaaS**, porque en tiempo de ejecución `msg.sender` es el RelayHub,
+  no la universidad. La vinculación resultaría permanentemente inaccesible.
+- Existe además una asimetría con la estimación de gas: `eth_estimateGas`
+  simula una llamada **directa** desde la cuenta firmante (`from = 0x8147…`),
+  que *sí* pasaría `onlyOwner`; por eso la estimación tiene éxito aunque la
+  transacción real (vía RelayHub) revertiría. Para evitar ese falso positivo,
+  los scripts envían la transacción con `gasLimit` explícito, omitiendo la
+  estimación.
+
+**Decisión de diseño (prototipo):** para que la vinculación sea operativa a
+través del NaaS, `deploy-identity.js` asigna como `owner` **al propio RelayHub**
+(obtenido dinámicamente con `getRelayHub()`). De este modo, cuando el RelayHub
+ejecuta `linkCredential`, se cumple `msg.sender == owner()` y la operación es
+válida. La misma lógica explica por qué `AcademicCertificate` funciona sin
+reconfiguración: su constructor concede `DEFAULT_ADMIN_ROLE` e `ISSUER_ROLE` a
+`msg.sender`, que —al desplegarse vía relay— es el RelayHub; y como las
+posteriores llamadas a `issueCredential`/`revokeCredential` también llegan por
+el RelayHub, el control de acceso se satisface.
+
+### 4. Implicancia de seguridad y camino a producción
+
+Delegar `owner`/roles en el RelayHub es **adecuado para un prototipo de TFM**,
+pero **no es seguro para producción**: como el RelayHub es un contrato de
+sistema compartido, el control de acceso deja de discriminar entre usuarios
+(cualquier emisor que opere por el mismo relay compartiría el mismo
+`msg.sender`). La solución correcta es hacer los contratos **relay-aware**:
+
+1. Adoptar el patrón `BaseRelayRecipient` + `_msgSender()` (o `ERC2771Context`
+   con el forwarder compatible de LNET), de modo que el control de acceso se
+   evalúe contra la **cuenta real de la universidad** y no contra el RelayHub.
+2. Alternativamente, fijar `owner`/roles mediante **parámetros del constructor**
+   y validar la autoría con `_msgSender()`.
+
+En resumen: la naturaleza *meta-transaccional* del modelo de gas de LNET
+desplaza la identidad efectiva del emisor al RelayHub, y todo diseño de control
+de acceso sobre esta red debe tenerlo en cuenta explícitamente.
 
 ## Explorer (testnet)
 
