@@ -7,14 +7,20 @@
  *   npm run deploy:identity
  *   node scripts/deploy-identity.js "IDENTITY-001" 0xOwner...
  *
- * Si no se pasan argumentos usa IDENTITY_ID del .env (o "IDENTITY-001")
- * y UNIVERSITY_ADDRESS (o la dirección del signer) como owner inicial.
+ * Si no se pasan argumentos usa IDENTITY_ID del .env (o "IDENTITY-001").
+ *
+ * OWNER (prototipo): por defecto se usa el RelayHub como owner. En el gas model
+ * todas las tx pasan por el RelayHub, así que ese es el `msg.sender` efectivo;
+ * para que `linkCredential` (onlyOwner) funcione vía relay, el owner debe ser
+ * el RelayHub. Podés forzar otro owner con el 2º argumento o IDENTITY_OWNER,
+ * pero entonces linkCredential no será invocable a través del NaaS.
  */
 
 const { ContractFactory } = require("ethers");
 const {
   getSigner,
   getNonce,
+  getRelayHub,
   loadArtifact,
   saveEnvValue,
   resolveDeployedAddress,
@@ -28,8 +34,7 @@ async function main() {
   const initialOwner =
     process.argv[3] ||
     process.env.IDENTITY_OWNER ||
-    process.env.UNIVERSITY_ADDRESS ||
-    originAddress;
+    (await getRelayHub());
 
   const nonce = await getNonce(provider);
 

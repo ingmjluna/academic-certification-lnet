@@ -150,6 +150,30 @@ async function getSigner() {
   return { signer, provider, kmsAddress, originAddress: origin };
 }
 
+/**
+ * Trusted forwarder del gas model en la testnet (Open-Protestnet).
+ * De él se obtiene el RelayHub, que es el `msg.sender` efectivo en TODAS las
+ * transacciones relayadas.
+ */
+const TRUSTED_FORWARDER = "0xa4B5eE2906090ce2cDbf5dfff944db26f397037D";
+
+/**
+ * Devuelve la dirección del RelayHub (el `msg.sender` real dentro de los
+ * contratos cuando se opera vía el gas model). Útil para asignar owner/roles
+ * en el prototipo, ya que las llamadas onlyOwner/onlyRole se evalúan contra él.
+ */
+async function getRelayHub() {
+  if (process.env.LACNET_RELAY_HUB && process.env.LACNET_RELAY_HUB.trim()) {
+    return process.env.LACNET_RELAY_HUB.trim();
+  }
+  const forwarder = new ethers.Contract(
+    TRUSTED_FORWARDER,
+    ["function getRelayHub() view returns (address)"],
+    getProvider()
+  );
+  return forwarder.getRelayHub();
+}
+
 /** Nonce actual de la cuenta que firma (origen de la transacción). */
 async function getNonce(provider) {
   const origin = ethers.computeAddress(
@@ -224,6 +248,7 @@ module.exports = {
   getProvider,
   getSigner,
   getNonce,
+  getRelayHub,
   resolveDeployedAddress,
   loadArtifact,
   saveEnvValue,

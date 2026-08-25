@@ -40,6 +40,7 @@ academic-certification-lnet/
 │   ├── deploy-identity.js
 │   ├── issue-credential.js
 │   ├── revoke-credential.js
+│   ├── link-credential.js
 │   └── verify-credential.js
 ├── metadata/
 │   └── credential.json       # ejemplo de metadatos de credencial
@@ -141,6 +142,22 @@ node scripts/revoke-credential.js <tokenId>
 
 Marca la credencial como revocada (evento `CredentialRevoked`). Tras revocar,
 `verify` mostrará `Válida: false` / `Revocada: true`.
+
+### Vincular una credencial a una identidad
+
+```bash
+npm run link
+# o:
+node scripts/link-credential.js <tokenId>
+```
+
+Llama a `AcademicIdentity.linkCredential(tokenId)` y lista las credenciales
+vinculadas (`getCredentials` / `credentialCount`).
+
+> `linkCredential` es `onlyOwner`. En el gas model el `msg.sender` es el
+> RelayHub, por eso `deploy-identity.js` usa el RelayHub como owner por defecto
+> (si no, la vinculación vía NaaS no sería invocable). Es una decisión propia
+> del prototipo; en producción se resuelve con contratos *relay-aware*.
 
 ### Verificar una credencial (solo lectura, sin clave privada)
 

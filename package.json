@@ -10,6 +10,7 @@
     "deploy:identity": "node scripts/deploy-identity.js",
     "issue": "node scripts/issue-credential.js",
     "revoke": "node scripts/revoke-credential.js",
+    "link": "node scripts/link-credential.js",
     "verify": "node scripts/verify-credential.js"
   },
   "engines": {
