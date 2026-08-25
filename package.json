@@ -11,7 +11,8 @@
     "issue": "node scripts/issue-credential.js",
     "revoke": "node scripts/revoke-credential.js",
     "link": "node scripts/link-credential.js",
-    "verify": "node scripts/verify-credential.js"
+    "verify": "node scripts/verify-credential.js",
+    "verify:ipfs": "node scripts/verify-ipfs.js"
   },
   "engines": {
     "node": ">=18"

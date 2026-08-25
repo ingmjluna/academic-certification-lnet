@@ -41,7 +41,8 @@ academic-certification-lnet/
 │   ├── issue-credential.js
 │   ├── revoke-credential.js
 │   ├── link-credential.js
-│   └── verify-credential.js
+│   ├── verify-credential.js
+│   └── verify-ipfs.js
 ├── metadata/
 │   └── credential.json       # ejemplo de metadatos de credencial
 ├── hardhat.config.js         # compila con evmVersion "paris" (ver más abajo)
@@ -169,6 +170,33 @@ node scripts/verify-credential.js <tokenId>
 
 Muestra si la credencial es válida, su titular, tipo, CID de IPFS, `tokenURI`
 y la fecha de emisión.
+
+### Probar la resolución IPFS (cadena completa)
+
+```bash
+npm run verify:ipfs
+# o:
+node scripts/verify-ipfs.js <tokenId>
+```
+
+Recorre la cadena de referencias off-chain de la credencial:
+
+```
+ERC-721 tokenId
+  -> tokenURI()            (on-chain)
+  -> ipfs://<metadataCID>  -> credential.json
+  -> campo "document"
+  -> ipfs://<documentCID>  -> Certificado (PDF)
+```
+
+Lee el `tokenURI` del contrato, descarga el `credential.json` desde un gateway
+IPFS (`IPFS_GATEWAY`, por defecto `https://gateway.pinata.cloud/ipfs`) y luego
+el documento referenciado, validando el tipo/tamaño.
+
+> **Importante:** el `ipfsCID` que se pasa a `issueCredential` debe ser el CID
+> del **`credential.json` (metadata)**, no el del PDF. El `tokenURI` apunta a la
+> metadata y ésta referencia el documento en su campo `document`. El contenido
+> debe estar **pineado** (p. ej. en Pinata) para que resuelva de forma fiable.
 
 ## Recompilar / actualizar el ABI
 
