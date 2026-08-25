@@ -39,6 +39,7 @@ academic-certification-lnet/
 │   ├── deploy-certificate.js
 │   ├── deploy-identity.js
 │   ├── issue-credential.js
+│   ├── revoke-credential.js
 │   └── verify-credential.js
 ├── metadata/
 │   └── credential.json       # ejemplo de metadatos de credencial
@@ -129,6 +130,17 @@ node scripts/issue-credential.js 0xAlumno... <ipfsCID> AcademicCertificate
 ```
 
 Imprime el `tokenId` obtenido del evento `CredentialIssued`.
+
+### Revocar una credencial
+
+```bash
+npm run revoke
+# o:
+node scripts/revoke-credential.js <tokenId>
+```
+
+Marca la credencial como revocada (evento `CredentialRevoked`). Tras revocar,
+`verify` mostrará `Válida: false` / `Revocada: true`.
 
 ### Verificar una credencial (solo lectura, sin clave privada)
 
