@@ -162,6 +162,17 @@ Funciona para una demo, pero **no es seguro para producción**: para eso hay que
 hacer los contratos *relay-aware* (patrón `BaseRelayRecipient` + `_msgSender()`)
 o asignar el rol/owner por parámetro del constructor.
 
+## Explorer (testnet)
+
+Explorer de la testnet de LNet: **https://explorer-testnet.l-net.io/**
+
+- Contrato: `https://explorer-testnet.l-net.io/address/<direccion>`
+- Transacción: `https://explorer-testnet.l-net.io/tx/<hash>`
+
+Como todo pasa por el gas model / RelayHub, en el detalle de la tx el `From`
+aparece como el RelayHub y el `To` como el contrato del gas model. Los eventos
+(`CredentialIssued`, `Transfer`) quedan en el log del contrato del certificado.
+
 ## Seguridad
 
 - No compartas ni commitees `LACNET_PRIVATE_KEY` ni `LACNET_NAAS_PASSWORD`.
