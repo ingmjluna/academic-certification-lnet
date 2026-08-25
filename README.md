@@ -1,8 +1,9 @@
 # academic-certification-lnet
 
 Proyecto Node.js para **desplegar y gestionar credenciales académicas** sobre la
-red **LACNET / LNet** (entorno NaaS de testnet) reutilizando el **bytecode/ABI**
-ya compilado en Remix.
+red **LACNET / LNet** (entorno NaaS de testnet). Los contratos se compilan con
+Hardhat (target `evmVersion: "paris"`, requisito de la red) y su **ABI/bytecode**
+versionado en `abi/` es el que consumen los scripts de despliegue.
 
 Incluye dos contratos:
 

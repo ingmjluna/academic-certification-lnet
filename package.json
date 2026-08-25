@@ -1,9 +1,11 @@
 {
   "name": "academic-certification-lnet",
   "version": "1.0.0",
-  "description": "Despliegue y gestión de credenciales académicas (ERC-721) sobre LACNET / LNet NaaS reutilizando el bytecode/ABI compilado en Remix.",
+  "description": "Despliegue y gestión de credenciales académicas (ERC-721) sobre LACNET / LNet NaaS, con contratos compilados para evmVersion paris.",
   "type": "commonjs",
   "private": true,
+  "author": "Marcos Luna",
+  "license": "MIT",
   "scripts": {
     "compile": "hardhat compile && node scripts/sync-abi.js",
     "deploy:certificate": "node scripts/deploy-certificate.js",
