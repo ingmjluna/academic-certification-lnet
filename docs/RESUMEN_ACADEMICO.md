@@ -107,12 +107,20 @@ En el prototipo, el contrato `AcademicIdentity.sol` implementa una **versión
 simplificada** de esta idea: una identidad (`identityId`) con un propietario
 (`Ownable`) que **agrupa (vincula) las credenciales** que le pertenecen
 (`linkCredential`, `getCredentials`). Conceptualmente cumple el papel de un
-agregador de atestaciones —el núcleo de ERC-725/735— aunque **no implementa la
-interfaz completa** de gestión de claves y *claims*. La evolución natural hacia
-producción consiste en sustituir este registro por una identidad ERC-725/735
-completa, o por identificadores descentralizados conformes a **W3C DID** con
-**Credenciales Verificables (W3C Verifiable Credentials)**, estándares hacia los
-que converge la interoperabilidad de credenciales (incluido **Open Badges 3.0**).
+agregador de atestaciones —el núcleo de ERC-725/735—.
+
+> ⚠️ **Alcance (limitación declarada explícitamente).** `AcademicIdentity`
+> **no es una implementación conforme a ERC-725**: no implementa `ERC-725X`,
+> `ERC-725Y` ni `ERC-735`. Se trata de un registro mínimo que *se inspira* en el
+> estándar. El uso de ERC-725/DID como marco de identidad de producción se
+> aborda como trabajo futuro (véase §5). Esta distinción se hace explícita para
+> no atribuir al prototipo un grado de conformidad que no posee.
+
+La evolución natural hacia producción consiste en sustituir este registro por una
+identidad ERC-725/735 completa, o por identificadores descentralizados conformes
+a **W3C DID** con **Credenciales Verificables (W3C Verifiable Credentials)**,
+estándares hacia los que converge la interoperabilidad de credenciales (incluido
+**Open Badges 3.0**).
 
 ### 2.5. Almacenamiento distribuido con IPFS
 
@@ -160,7 +168,7 @@ fecha) y referencia el documento en su campo `document`. El script
 | Componente | Estándar / tecnología | Rol en el sistema |
 |---|---|---|
 | `AcademicCertificate.sol` | ERC-721 + AccessControl (no transferible) | Emite, revoca y expone credenciales como NFT soulbound |
-| `AcademicIdentity.sol` | Identidad simplificada (base ERC-725/DID) | Agrupa las credenciales de una identidad |
+| `AcademicIdentity.sol` | Registro de identidad simplificado (inspirado en ERC-725, **no conforme**) | Agrupa las credenciales de una identidad |
 | `credential.json` + PDF | IPFS (CID) | Metadatos y documento verificables off-chain |
 | LACNET / LNet | EVM permisionada, modelo de gas / RelayHub | Infraestructura de despliegue sin comisiones |
 | Scripts Node.js (ethers + gas-model-provider) | — | Automatizan el ciclo de vida vía NaaS |
@@ -195,13 +203,22 @@ fecha) y referencia el documento en su campo `document`. El script
 
 ## 5. Limitaciones y trabajo futuro
 
+- **La identidad NO implementa el estándar ERC-725 completo** *(limitación
+  principal de alcance)*. El contrato `AcademicIdentity` es un **registro
+  simplificado**: una identidad con propietario (`Ownable`) que agrupa los
+  `tokenId` de sus credenciales (`linkCredential`/`getCredentials`). **No**
+  implementa las interfaces `ERC-725X` (ejecución en nombre de la identidad),
+  `ERC-725Y` (almacén de datos clave-valor) ni `ERC-735` (gestión de *claims*).
+  Por tanto, el prototipo **se inspira** conceptualmente en ERC-725 (agregación
+  de atestaciones sobre un sujeto) pero **no es conforme** a él. La resolución de
+  esta limitación —adoptar **ERC-725/735** o **W3C DID + Verifiable Credentials**
+  para gestión de claves y *claims* estandarizada— constituye el **camino hacia
+  producción** y la línea de trabajo futuro prioritaria.
 - **Control de acceso y meta-transacciones**: por el modelo de gas de LNET, el
   `msg.sender` efectivo es el RelayHub; el prototipo asigna roles/propiedad al
   RelayHub para operar. En producción, los contratos deben ser *relay-aware*
   (patrón `BaseRelayRecipient`/`_msgSender()` o `ERC2771Context`) para que el
   control de acceso recaiga sobre la cuenta real de la institución.
-- **Identidad completa**: migrar `AcademicIdentity` a **ERC-725/735** o a **W3C
-  DID + Verifiable Credentials** para gestión de claves y *claims* estandarizada.
 - **Interoperabilidad de credenciales**: alinear la metadata con **Open Badges
   3.0 / W3C VC** para portabilidad entre plataformas.
 - **Privacidad**: minimizar datos personales on-chain; emplear *hashes*,
