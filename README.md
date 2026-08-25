@@ -5,6 +5,10 @@ red **LACNET / LNet** (entorno NaaS de testnet). Los contratos se compilan con
 Hardhat (target `evmVersion: "paris"`, requisito de la red) y su **ABI/bytecode**
 versionado en `abi/` es el que consumen los scripts de despliegue.
 
+> 📄 **Fundamentación académica:** para una discusión formal del uso de blockchain
+> en la certificación académica (Ethereum, ERC-721, ERC-725, identidad
+> descentralizada e IPFS), ver [`docs/RESUMEN_ACADEMICO.md`](docs/RESUMEN_ACADEMICO.md).
+
 Incluye dos contratos:
 
 - **`AcademicCertificate`** — ERC-721 **no transferible** (soulbound) con control
