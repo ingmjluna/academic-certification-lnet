@@ -1,6 +1,6 @@
 # academic-certification-lnet
 
-Proyecto Node.js para **desplegar y gestionar credenciales académicas** sobre la
+Proyecto en Node.js para desplegar y gestionar credenciales académicas sobre la
 red **LACNET / LNet** (entorno NaaS de testnet). Los contratos se compilan con
 Hardhat (target `evmVersion: "paris"`, requisito de la red) y su **ABI/bytecode**
 versionado en `abi/` es el que consumen los scripts de despliegue.
@@ -52,19 +52,6 @@ academic-certification-lnet/
 ├── package.json
 └── README.md
 ```
-
-> ⚠️ **EVM target obligatorio: `paris`.** La red Besu de LACChain (testnet) no
-> soporta el opcode `PUSH0` (introducido en "shanghai") ni opcodes posteriores.
-> Si compilás con un target más nuevo (shanghai/cancun/prague, que es el
-> **default de Solidity ≥ 0.8.20 / Remix**), el bytecode contiene `PUSH0` y el
-> despliegue **revierte silenciosamente** (la meta-tx se relaya con status 1
-> pero no se crea el contrato). Por eso `hardhat.config.js` fija
-> `evmVersion: "paris"`. **No reutilices bytecode compilado en Remix con el
-> target por defecto.**
-
-> `artifacts/` y `cache/` (salidas de compilación de Remix/Hardhat) están en
-> `.gitignore`. Por eso el ABI y el bytecode que necesitan los scripts se
-> guardan versionados en `abi/`.
 
 ## Requisitos previos
 
@@ -273,23 +260,6 @@ reconfiguración: su constructor concede `DEFAULT_ADMIN_ROLE` e `ISSUER_ROLE` a
 posteriores llamadas a `issueCredential`/`revokeCredential` también llegan por
 el RelayHub, el control de acceso se satisface.
 
-### 4. Implicancia de seguridad y camino a producción
-
-Delegar `owner`/roles en el RelayHub es **adecuado para un prototipo de TFM**,
-pero **no es seguro para producción**: como el RelayHub es un contrato de
-sistema compartido, el control de acceso deja de discriminar entre usuarios
-(cualquier emisor que opere por el mismo relay compartiría el mismo
-`msg.sender`). La solución correcta es hacer los contratos **relay-aware**:
-
-1. Adoptar el patrón `BaseRelayRecipient` + `_msgSender()` (o `ERC2771Context`
-   con el forwarder compatible de LNET), de modo que el control de acceso se
-   evalúe contra la **cuenta real de la universidad** y no contra el RelayHub.
-2. Alternativamente, fijar `owner`/roles mediante **parámetros del constructor**
-   y validar la autoría con `_msgSender()`.
-
-En resumen: la naturaleza *meta-transaccional* del modelo de gas de LNET
-desplaza la identidad efectiva del emisor al RelayHub, y todo diseño de control
-de acceso sobre esta red debe tenerlo en cuenta explícitamente.
 
 ## Explorer (testnet)
 
@@ -302,7 +272,3 @@ Como todo pasa por el gas model / RelayHub, en el detalle de la tx el `From`
 aparece como el RelayHub y el `To` como el contrato del gas model. Los eventos
 (`CredentialIssued`, `Transfer`) quedan en el log del contrato del certificado.
 
-## Seguridad
-
-- No compartas ni commitees `LACNET_PRIVATE_KEY` ni `LACNET_NAAS_PASSWORD`.
-- Revisá que `.env` esté siempre ignorado antes de hacer `git add`.
