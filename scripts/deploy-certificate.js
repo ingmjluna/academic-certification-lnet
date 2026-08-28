@@ -2,7 +2,6 @@
 
 /**
  * Despliega el contrato AcademicCertificate (ERC-721 no transferible) en LACNET.
- * Reutiliza el bytecode/ABI compilado en Remix (carpeta abi/).
  *
  *   npm run deploy:certificate
  */
